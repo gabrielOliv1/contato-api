@@ -19,6 +19,10 @@ export class ContactRepository implements IContactRepository {
   }
 
   async findByUserName(userName: string): Promise<Contact[]> {
+    if (typeof userName !== 'string') {
+      throw new Error('User name must be a string');
+    }
+
     const contacts = await ContactModel.findAll({
       include: [{
         model: UserModel,
