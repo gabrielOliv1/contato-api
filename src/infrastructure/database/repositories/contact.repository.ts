@@ -37,4 +37,17 @@ export class ContactRepository implements IContactRepository {
     });
     return contacts.map(contact => contact.toJSON() as Contact);
   }
+
+  async findByTelefoneCelular(telefone_celular: string): Promise<Contact | null> {
+    const contact = await ContactModel.findOne({
+      where: { telefone_celular },
+    });
+    return contact ? (contact.toJSON() as Contact) : null;
+  }
+
+  async delete(telefone_celular: string): Promise<void> {
+    await ContactModel.destroy({
+      where: { telefone_celular },
+    });
+  }
 } 

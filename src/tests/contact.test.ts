@@ -3,15 +3,17 @@ import express from 'express';
 import { ContactController } from '../interfaces/http/controllers/contact.controller';
 import { ListContactsByUserNameService } from '../application/services/listContactsByUserName.service';
 import { CreateContactService } from '../application/services/createContact.service';
-import { ContactRepository } from '../infrastructure/database/repositories/contact.repository.impl';
+import { DeleteContactService } from '../application/services/deleteContact.service';
+import { ContactRepository } from '../infrastructure/database/repositories/contact.repository';
 import { UserModel } from '../infrastructure/database/models/user.model';
 import { ContactModel } from '../infrastructure/database/models/contact.model';
 
-describe('GET /contacts', () => {
+describe('TESTES /contacts, ', () => {
   let app: express.Application;
   let contactRepository: ContactRepository;
   let createContactService: CreateContactService;
   let listContactsByUserNameService: ListContactsByUserNameService;
+  let deleteContactService: DeleteContactService;
   let contactController: ContactController;
   let testUser: any;
 
@@ -24,38 +26,40 @@ describe('GET /contacts', () => {
       email: 'test@example.com',
       senha: 'password123'
     });
-    console.log('Test user created:', testUser.toJSON())
 
     console.log('\nCRIANDO CONTATO PARA CASO DE TESTE...');
-    const contact1 = await ContactModel.create({
+    await ContactModel.create({
       id_usuario: testUser.id,
       telefone_celular: '123456789',
       email: 'contact1@example.com',
       endereco: 'Test Address 1'
     });
-    console.log('Contact 1 created:', contact1.toJSON());
 
-    const contact2 = await ContactModel.create({
+    await ContactModel.create({
       id_usuario: testUser.id,
       telefone_celular: '987654321',
       email: 'contact2@example.com',
       endereco: 'Test Address 2'
     });
-    console.log('Contact 2 created:', contact2.toJSON());
 
     console.log('\nINICIALIZANDO APP DE TESTE...');
     app = express();
     app.use(express.json());
 
-    console.log('Initializing dependencies...');
     contactRepository = new ContactRepository();
     createContactService = new CreateContactService(contactRepository);
     listContactsByUserNameService = new ListContactsByUserNameService(contactRepository);
-    contactController = new ContactController(createContactService, listContactsByUserNameService);
+    deleteContactService = new DeleteContactService(contactRepository);
+    contactController = new ContactController(
+      createContactService,
+      listContactsByUserNameService,
+      deleteContactService
+    );
 
     console.log('Setting up routes...');
     app.get('/contacts', contactController.listByUserName.bind(contactController));
-    console.log('=== Test environment setup complete ===\n');
+    app.post('/contacts', contactController.create.bind(contactController));
+    app.delete('/contacts/:telefone_celular', contactController.delete.bind(contactController));
   });
 
   it('retorna os contatos quando user_name é fornecido', async () => {
@@ -63,24 +67,92 @@ describe('GET /contacts', () => {
     console.log('Test case: GET /contacts?user_name=Test User');
     console.log('RESPOSTA ESPERADA:');
     console.log('- Status: 200');
-    console.log('- RESPOSTA: Array com 2 contatos, com email, telefone_celula, endereço e indicando o usuário relacionado via id_usuario e "user"');
+    console.log('- RESPOSTA: Array com 2 contatos, com email, telefone_celular, endereço e indicando o usuário relacionado via id_usuario e "user"');
 
     const response = await request(app)
       .get('/contacts')
       .query({ user_name: 'Test User' });
 
-    console.log('\nRESPOSTA RECEBIDA:');
-    console.log('- Status:', response.status);
-    console.log('- Body:', JSON.stringify(response.body, null, 2));
-
+    console.log('body da requisição /GET contacts: ', response.body)
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
     expect(response.body.length).toBe(2);
     expect(response.body[0]).toHaveProperty('email');
     expect(response.body[0]).toHaveProperty('telefone_celular');
     expect(response.body[0]).toHaveProperty('endereco');
-
-    console.log('\nTest assertions passed successfully');
-    console.log('=== Test completed ===\n');
   });
+
+  it('deve retornar 404 quando user_name não existe', async () => {
+    console.log('\n=== TESTANDO: retorna 404 quando user_name não existe ===');
+    console.log('Test case: GET /contacts?user_name=UsuarioInexistente');
+    console.log('RESPOSTA ESPERADA:');
+    console.log('- Status: 404');
+    console.log('- RESPOSTA: Mensagem de erro informativa com o user_name fornecido');
+
+    const response = await request(app)
+      .get('/contacts')
+      .query({ user_name: 'UsuarioInexistente' });
+
+    console.log('Status da requisição: ', response.status);
+    console.log('Body da requisição: ', response.body);
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty('message');
+    expect(response.body).toHaveProperty('user_name', 'UsuarioInexistente');
+    expect(response.body).toHaveProperty('contacts');
+    expect(Array.isArray(response.body.contacts)).toBe(true);
+    expect(response.body.contacts.length).toBe(0);
+  });
+
+  it('deve criar e depois deletar um contato', async () => {
+    console.log('======= CRIAÇÃO DE CONTATO =======')
+    const newContact = {
+      id_usuario: testUser.id,
+      telefone_celular: '999999999',
+      telefone_recado: '999999998',
+      email: 'EXEMPLO@test.com',
+      endereco: 'Endereço novo para testar'
+    }
+
+    const createResponse = await request(app)
+      .post('/contacts')
+      .send(newContact)
+
+    console.log('Status criação: ', createResponse.status)
+    console.log('Body da requisição: ', createResponse.body)
+    expect(createResponse.status).toBe(201)
+    expect(createResponse.body).toMatchObject(newContact)
+
+    // verificar se o contato foi criado no banco
+    const createdContact = await ContactModel.findOne({
+      where: { telefone_celular: newContact.telefone_celular }
+    })
+
+    console.log('Registro do contato no banco de dados: ', createdContact)
+    expect(createdContact).not.toBeNull()
+    expect(createdContact?.toJSON()).toMatchObject(newContact)
+
+    // deletar o contato
+    const deleteResponse = await request(app)
+      .delete(`/contacts/${newContact.telefone_celular}`)
+
+    console.log('Status após chamada à rota de deleção /contacts/${newContact.telefone_celular}: ', deleteResponse.status)
+    expect(deleteResponse.status).toBe(204)
+
+    // verificar se o contato foi realmente deletado
+    const deletedContact = await ContactModel.findOne({
+      where: { telefone_celular: newContact.telefone_celular }
+    })
+
+    console.log('Retorno da busca pelo contato deletado: ', deletedContact)
+    expect(deletedContact).toBeNull()
+  })
+
+  it('deve retornar 404 ao tentar deletar contato inexistente', async () => {
+    console.log('======= DELETAR CONTATO INEXISTENTE =======')
+    const response = await request(app)
+      .delete('/contacts/999999999')
+
+    console.log('Status após deletar contato inexistente: ', response.status)
+    expect(response.status).toBe(404)
+  })
 }); 

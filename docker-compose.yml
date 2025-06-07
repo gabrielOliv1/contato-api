@@ -7,6 +7,11 @@ services:
     ports:
       - "3306:3306"
     environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: example
+      DB_NAME: contacts_db
       MYSQL_ROOT_PASSWORD: example
       MYSQL_DATABASE: contacts_db
     volumes:

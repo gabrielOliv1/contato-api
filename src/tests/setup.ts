@@ -20,24 +20,12 @@ beforeAll(async () => {
     console.log('\nTESTANDO CONEXÃO AO BANCO DE DADOS...');
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
-
-    console.log('\nDROP TABELAS EXISTENTES...');
     await ContactModel.drop();
-    console.log('Contacts table dropped.');
-    
     await UserModel.drop();
-    console.log('Users table dropped.');
-
-    console.log('\nRECRIANDO TABELAS...');
     await UserModel.sync({ force: true });
-    console.log('Users table created.');
-
     await ContactModel.sync({ force: true });
-    console.log('Contacts table created.');
 
-    console.log('\nFAZENDO O RELACIONAMENTO ENTRE TABELAS...');
     setupAssociations();
-    console.log('Model associations set up.');
 
     const tables = await sequelize.getQueryInterface().showAllTables();
     console.log('\nTABELAS:', tables);
