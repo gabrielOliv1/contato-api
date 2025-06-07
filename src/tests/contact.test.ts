@@ -123,13 +123,10 @@ describe('TESTES /contacts, ', () => {
     expect(createResponse.body).toMatchObject(newContact)
 
     // verificar se o contato foi criado no banco
-    const createdContact = await ContactModel.findOne({
-      where: { telefone_celular: newContact.telefone_celular }
-    })
-
+    const createdContact = await contactRepository.findByTelefoneCelular(newContact.telefone_celular)
     console.log('Registro do contato no banco de dados: ', createdContact)
     expect(createdContact).not.toBeNull()
-    expect(createdContact?.toJSON()).toMatchObject(newContact)
+    expect(createdContact).toMatchObject(newContact)
 
     // deletar o contato
     const deleteResponse = await request(app)
@@ -138,11 +135,8 @@ describe('TESTES /contacts, ', () => {
     console.log('Status após chamada à rota de deleção /contacts/${newContact.telefone_celular}: ', deleteResponse.status)
     expect(deleteResponse.status).toBe(204)
 
-    // verificar se o contato foi realmente deletado
-    const deletedContact = await ContactModel.findOne({
-      where: { telefone_celular: newContact.telefone_celular }
-    })
-
+    // verificar se o contato foi realmente deletado 
+    const deletedContact = await contactRepository.findByTelefoneCelular(newContact.telefone_celular)
     console.log('Retorno da busca pelo contato deletado: ', deletedContact)
     expect(deletedContact).toBeNull()
   })
